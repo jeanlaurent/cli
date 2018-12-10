@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/docker/cli/cli"
@@ -171,7 +170,7 @@ func main() {
 	stdin, stdout, stderr := term.StdStreams()
 	logrus.SetOutput(stderr)
 
-	dockerCli := command.NewDockerCli(stdin, stdout, stderr, contentTrustEnabled(), containerizedengine.NewClient)
+	dockerCli := command.NewDockerCli(stdin, stdout, stderr, containerizedengine.NewClient)
 	cmd := newDockerCommand(dockerCli)
 
 	if err := cmd.Execute(); err != nil {
@@ -189,16 +188,6 @@ func main() {
 		fmt.Fprintln(stderr, err)
 		os.Exit(1)
 	}
-}
-
-func contentTrustEnabled() bool {
-	if e := os.Getenv("DOCKER_CONTENT_TRUST"); e != "" {
-		if t, err := strconv.ParseBool(e); t || err != nil {
-			// treat any other value as true
-			return true
-		}
-	}
-	return false
 }
 
 type versionDetails interface {

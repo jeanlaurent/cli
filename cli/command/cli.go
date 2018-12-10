@@ -279,8 +279,8 @@ type ClientInfo struct {
 }
 
 // NewDockerCli returns a DockerCli instance with IO output and error streams set by in, out and err.
-func NewDockerCli(in io.ReadCloser, out, err io.Writer, isTrusted bool, containerizedFn func(string) (clitypes.ContainerizedClient, error)) *DockerCli {
-	return &DockerCli{in: NewInStream(in), out: NewOutStream(out), err: err, contentTrust: isTrusted, newContainerizeClient: containerizedFn}
+func NewDockerCli(in io.ReadCloser, out, err io.Writer, containerizedFn func(string) (clitypes.ContainerizedClient, error)) *DockerCli {
+	return &DockerCli{in: NewInStream(in), out: NewOutStream(out), err: err, contentTrust: contentTrustEnabled(), newContainerizeClient: containerizedFn}
 }
 
 // NewAPIClientFromFlags creates a new APIClient from command line flags

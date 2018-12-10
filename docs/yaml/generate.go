@@ -19,7 +19,7 @@ const descriptionSourcePath = "docs/reference/commandline/"
 
 func generateCliYaml(opts *options) error {
 	stdin, stdout, stderr := term.StdStreams()
-	dockerCli := command.NewDockerCli(stdin, stdout, stderr, false, nil)
+	dockerCli := command.NewDockerCli(stdin, stdout, stderr, nil)
 	cmd := &cobra.Command{Use: "docker"}
 	commands.AddCommands(cmd, dockerCli)
 	disableFlagsInUseLine(cmd)
