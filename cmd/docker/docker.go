@@ -11,7 +11,6 @@ import (
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/cli/cli/command/commands"
 	cliconfig "github.com/docker/cli/cli/config"
-	"github.com/docker/cli/cli/debug"
 	cliflags "github.com/docker/cli/cli/flags"
 	"github.com/docker/cli/internal/containerizedengine"
 	"github.com/docker/docker/api/types/versions"
@@ -39,7 +38,6 @@ func newDockerCommand(dockerCli *command.DockerCli) *cobra.Command {
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			// flags must be the top-level command flags, not cmd.Flags()
 			opts.Common.SetDefaultOptions(flags)
-			dockerPreRun(opts)
 			if err := dockerCli.Initialize(opts); err != nil {
 				return err
 			}
@@ -147,7 +145,6 @@ func initializeDockerCli(dockerCli *command.DockerCli, flags *pflag.FlagSet, opt
 	// when using --help, PersistentPreRun is not called, so initialization is needed.
 	// flags must be the top-level command flags, not cmd.Flags()
 	opts.Common.SetDefaultOptions(flags)
-	dockerPreRun(opts)
 	return dockerCli.Initialize(opts)
 }
 
@@ -202,18 +199,6 @@ func contentTrustEnabled() bool {
 		}
 	}
 	return false
-}
-
-func dockerPreRun(opts *cliflags.ClientOptions) {
-	cliflags.SetLogLevel(opts.Common.LogLevel)
-
-	if opts.ConfigDir != "" {
-		cliconfig.SetDir(opts.ConfigDir)
-	}
-
-	if opts.Common.Debug {
-		debug.Enable()
-	}
 }
 
 type versionDetails interface {
