@@ -34,6 +34,10 @@ binary: ## build executable for Linux
 	@echo "WARNING: binary creates a Linux executable. Use cross for macOS or Windows."
 	./scripts/build/binary
 
+.PHONY: plugins
+plugins: ## build example CLI plugins
+	./scripts/build/plugins
+
 .PHONY: cross
 cross: ## build executable for macOS and Windows
 	./scripts/build/cross
