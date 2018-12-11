@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/docker/cli/cli"
+	pluginmanager "github.com/docker/cli/cli-plugins/manager"
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/cli/cli/command/commands"
 	cliconfig "github.com/docker/cli/cli/config"
@@ -30,9 +31,32 @@ func newDockerCommand(dockerCli *command.DockerCli) *cobra.Command {
 		SilenceUsage:     true,
 		SilenceErrors:    true,
 		TraverseChildren: true,
-		Args:             noArgs,
+		Args: func(_ *cobra.Command, _ []string) error {
+			// arg validation is handled in RunE to support external commands
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return command.ShowHelp(dockerCli.Err())(cmd, args)
+			if len(args) == 0 {
+				return command.ShowHelp(dockerCli.Err())(cmd, args)
+			}
+			plugincmd, err := pluginmanager.PluginRunCommand(args[0], cmd)
+			if _, ok := err.(pluginmanager.ErrPluginNotFound); ok {
+				return fmt.Errorf(
+					"docker: '%s' is not a docker command.\nSee 'docker --help'", args[0])
+			}
+			if err != nil {
+				return err
+			}
+
+			// Using dockerCli.{In,Out,Err}() here results in a hang until something is input.
+			// See: - https://github.com/golang/go/issues/10338
+			//      - https://github.com/golang/go/commit/d000e8742a173aa0659584aa01b7ba2834ba28ab
+			// os.Stdin is a *os.File which avoids this behaviour. We don't need the functionality
+			// of the wrappers here anyway.
+			plugincmd.Stdin = os.Stdin
+			plugincmd.Stdout = os.Stdout
+			plugincmd.Stderr = os.Stderr
+			return plugincmd.Run()
 		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			// flags must be the top-level command flags, not cmd.Flags()
@@ -155,14 +179,6 @@ func visitAll(root *cobra.Command, fn func(*cobra.Command)) {
 		visitAll(cmd, fn)
 	}
 	fn(root)
-}
-
-func noArgs(cmd *cobra.Command, args []string) error {
-	if len(args) == 0 {
-		return nil
-	}
-	return fmt.Errorf(
-		"docker: '%s' is not a docker command.\nSee 'docker --help'", args[0])
 }
 
 func main() {
