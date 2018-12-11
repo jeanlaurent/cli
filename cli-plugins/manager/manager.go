@@ -1,12 +1,14 @@
 package manager
 
 import (
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 
 	cliplugins "github.com/docker/cli/cli-plugins"
 	"github.com/spf13/cobra"
@@ -41,6 +43,82 @@ func PluginDirs() []string {
 		)
 	})
 	return pluginDirs
+}
+
+func addPluginCandidatesFromDir(res map[string][]string, d string) error {
+	dentries, err := ioutil.ReadDir(d)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		// Portable? This seems to be as good as it gets :-/
+		if serr, ok := err.(*os.SyscallError); ok && serr.Err == syscall.ENOTDIR {
+			return nil
+		}
+		return err
+	}
+	for _, dentry := range dentries {
+		switch dentry.Mode() & os.ModeType {
+		case 0, os.ModeSymlink:
+			// Regular file or symlink, keep going
+		default:
+			// Something else, ignore.
+			continue
+		}
+		name := dentry.Name()
+		if !strings.HasPrefix(name, cliplugins.NamePrefix) {
+			continue
+		}
+		name = strings.TrimPrefix(name, cliplugins.NamePrefix)
+		if runtime.GOOS == "windows" {
+			exe := ".exe"
+			if !strings.HasSuffix(name, exe) {
+				continue
+			}
+			name = strings.TrimSuffix(name, exe)
+		}
+		res[name] = append(res[name], filepath.Join(d, dentry.Name()))
+	}
+	return nil
+}
+
+// listPluginCandidates allows the dirs to be specified for testing purposes.
+func listPluginCandidates(dirs []string) (map[string][]string, error) {
+	result := make(map[string][]string)
+	for _, d := range dirs {
+		if err := addPluginCandidatesFromDir(result, d); err != nil {
+			return nil, err // Or return partial result?
+		}
+	}
+	return result, nil
+}
+
+// ListPluginCandidates returns a map from plugin name to the list of (unvalidated) Candidates. The list is in descending order of priority.
+func ListPluginCandidates() (map[string][]string, error) {
+	return listPluginCandidates(PluginDirs())
+}
+
+func ListPlugins(rootcmd *cobra.Command) ([]Plugin, error) {
+	candidates, err := ListPluginCandidates()
+	if err != nil {
+		return nil, err
+	}
+
+	var plugins []Plugin
+	for _, paths := range candidates {
+		if len(paths) == 0 {
+			continue
+		}
+		c := &candidate{paths[0]}
+		p, err := NewPlugin(c, rootcmd)
+		if err != nil {
+			return nil, err
+		}
+		p.ShadowedPaths = paths[1:]
+		plugins = append(plugins, p)
+	}
+
+	return plugins, nil
 }
 
 // FindPlugin finds a valid plugin, if the first candidate is invalid then returns an error

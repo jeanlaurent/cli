@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	pluginmanager "github.com/docker/cli/cli-plugins/manager"
 	"github.com/docker/docker/pkg/term"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -17,6 +18,8 @@ func SetupRootCommand(rootCmd *cobra.Command) {
 	cobra.AddTemplateFunc("operationSubCommands", operationSubCommands)
 	cobra.AddTemplateFunc("managementSubCommands", managementSubCommands)
 	cobra.AddTemplateFunc("wrappedFlagUsages", wrappedFlagUsages)
+	cobra.AddTemplateFunc("commandVendor", commandVendor)
+	cobra.AddTemplateFunc("isFirstLevelCommand", isFirstLevelCommand) // is it an immediate sub-command of the root
 
 	rootCmd.SetUsageTemplate(usageTemplate)
 	rootCmd.SetHelpTemplate(helpTemplate)
@@ -57,6 +60,29 @@ var helpCommand = &cobra.Command{
 			return errors.Errorf("unknown help topic: %v", strings.Join(args, " "))
 		}
 
+		plugins, err := pluginmanager.ListPlugins(c.Root())
+		if err != nil {
+			return err
+		}
+		// Add a stub entry for every plugin so they are included in the help output
+		for _, p := range plugins {
+			if err := p.IsValid(); err != nil {
+				continue
+			}
+			vendor := p.Vendor
+			if vendor == "" {
+				vendor = "unknown"
+			}
+			c.Root().AddCommand(&cobra.Command{
+				Use:   p.Name,
+				Short: p.ShortDescription,
+				Run:   func(_ *cobra.Command, _ []string) {},
+				Annotations: map[string]string{
+					"com.docker.cli.plugin-vendor": vendor,
+				},
+			})
+		}
+
 		helpFunc := cmd.HelpFunc()
 		helpFunc(cmd, args)
 		return nil
@@ -87,6 +113,21 @@ func wrappedFlagUsages(cmd *cobra.Command) string {
 		width = int(ws.Width)
 	}
 	return cmd.Flags().FlagUsagesWrapped(width - 1)
+}
+
+func isFirstLevelCommand(cmd *cobra.Command) bool {
+	return cmd.Parent() == cmd.Root()
+}
+
+func commandVendor(cmd *cobra.Command) string {
+	width := 13
+	if v, ok := cmd.Annotations["com.docker.cli.plugin-vendor"]; ok {
+		if len(v) > width-2 {
+			v = v[:width-3] + "…"
+		}
+		return fmt.Sprintf("%-*s", width, "("+v+")")
+	}
+	return strings.Repeat(" ", width)
 }
 
 func managementSubCommands(cmd *cobra.Command) []*cobra.Command {
@@ -129,7 +170,7 @@ Options:
 Management Commands:
 
 {{- range managementSubCommands . }}
-  {{rpad .Name .NamePadding }} {{.Short}}
+  {{rpad .Name .NamePadding }} {{ if isFirstLevelCommand .}}{{commandVendor .}} {{ end}}{{.Short}}
 {{- end}}
 
 {{- end}}
@@ -138,7 +179,7 @@ Management Commands:
 Commands:
 
 {{- range operationSubCommands . }}
-  {{rpad .Name .NamePadding }} {{.Short}}
+  {{rpad .Name .NamePadding }} {{ if isFirstLevelCommand .}}{{commandVendor .}} {{ end}}{{.Short}}
 {{- end}}
 {{- end}}
 
