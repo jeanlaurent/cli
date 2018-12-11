@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	pluginmanager "github.com/docker/cli/cli-plugins/manager"
@@ -57,6 +58,18 @@ var helpCommand = &cobra.Command{
 	RunE: func(c *cobra.Command, args []string) error {
 		cmd, args, e := c.Root().Find(args)
 		if cmd == nil || e != nil || len(args) > 0 {
+			if len(args) == 1 {
+				helpcmd, err := pluginmanager.PluginHelpCommand(args[0], cmd.Root())
+				if err == nil {
+					helpcmd.Stdin = os.Stdin
+					helpcmd.Stdout = os.Stdout
+					helpcmd.Stderr = os.Stderr
+					return helpcmd.Run()
+				}
+				if _, ok := err.(pluginmanager.ErrPluginNotFound); !ok {
+					return err
+				}
+			}
 			return errors.Errorf("unknown help topic: %v", strings.Join(args, " "))
 		}
 

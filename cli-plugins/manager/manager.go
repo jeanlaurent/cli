@@ -183,3 +183,7 @@ func PluginRunCommand(name string, rootcmd *cobra.Command) (*exec.Cmd, error) {
 	// they lack e.g. global options which we must propagate here.
 	return runPluginCommand(name, rootcmd, os.Args[1:])
 }
+
+func PluginHelpCommand(name string, rootcmd *cobra.Command) (*exec.Cmd, error) {
+	return runPluginCommand(name, rootcmd, []string{"help", name})
+}
