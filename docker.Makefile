@@ -59,6 +59,9 @@ build: binary ## alias for binary
 plugins: build_binary_native_image ## build the CLI plugin examples
 	docker run --rm $(ENVVARS) $(MOUNTS) $(BINARY_NATIVE_IMAGE_NAME) ./scripts/build/plugins
 
+plugins-osx: build_cross_image ## build the CLI plugin examples
+	docker run --rm $(ENVVARS) $(MOUNTS) $(CROSS_IMAGE_NAME) ./scripts/build/plugins-osx
+
 .PHONY: clean
 clean: build_docker_image ## clean build artifacts
 	docker run --rm $(ENVVARS) $(MOUNTS) $(DEV_DOCKER_IMAGE_NAME) make clean
