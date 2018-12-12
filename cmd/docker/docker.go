@@ -4,14 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/docker/cli/cli"
+	pluginmanager "github.com/docker/cli/cli-plugins/manager"
 	"github.com/docker/cli/cli/command"
 	"github.com/docker/cli/cli/command/commands"
 	cliconfig "github.com/docker/cli/cli/config"
-	"github.com/docker/cli/cli/debug"
 	cliflags "github.com/docker/cli/cli/flags"
 	"github.com/docker/cli/internal/containerizedengine"
 	"github.com/docker/docker/api/types/versions"
@@ -32,14 +31,36 @@ func newDockerCommand(dockerCli *command.DockerCli) *cobra.Command {
 		SilenceUsage:     true,
 		SilenceErrors:    true,
 		TraverseChildren: true,
-		Args:             noArgs,
+		Args: func(_ *cobra.Command, _ []string) error {
+			// arg validation is handled in RunE to support external commands
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return command.ShowHelp(dockerCli.Err())(cmd, args)
+			if len(args) == 0 {
+				return command.ShowHelp(dockerCli.Err())(cmd, args)
+			}
+			plugincmd, err := pluginmanager.PluginRunCommand(args[0], cmd)
+			if _, ok := err.(pluginmanager.ErrPluginNotFound); ok {
+				return fmt.Errorf(
+					"docker: '%s' is not a docker command.\nSee 'docker --help'", args[0])
+			}
+			if err != nil {
+				return err
+			}
+
+			// Using dockerCli.{In,Out,Err}() here results in a hang until something is input.
+			// See: - https://github.com/golang/go/issues/10338
+			//      - https://github.com/golang/go/commit/d000e8742a173aa0659584aa01b7ba2834ba28ab
+			// os.Stdin is a *os.File which avoids this behaviour. We don't need the functionality
+			// of the wrappers here anyway.
+			plugincmd.Stdin = os.Stdin
+			plugincmd.Stdout = os.Stdout
+			plugincmd.Stderr = os.Stderr
+			return plugincmd.Run()
 		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			// flags must be the top-level command flags, not cmd.Flags()
 			opts.Common.SetDefaultOptions(flags)
-			dockerPreRun(opts)
 			if err := dockerCli.Initialize(opts); err != nil {
 				return err
 			}
@@ -147,7 +168,6 @@ func initializeDockerCli(dockerCli *command.DockerCli, flags *pflag.FlagSet, opt
 	// when using --help, PersistentPreRun is not called, so initialization is needed.
 	// flags must be the top-level command flags, not cmd.Flags()
 	opts.Common.SetDefaultOptions(flags)
-	dockerPreRun(opts)
 	return dockerCli.Initialize(opts)
 }
 
@@ -161,20 +181,12 @@ func visitAll(root *cobra.Command, fn func(*cobra.Command)) {
 	fn(root)
 }
 
-func noArgs(cmd *cobra.Command, args []string) error {
-	if len(args) == 0 {
-		return nil
-	}
-	return fmt.Errorf(
-		"docker: '%s' is not a docker command.\nSee 'docker --help'", args[0])
-}
-
 func main() {
 	// Set terminal emulation based on platform as required.
 	stdin, stdout, stderr := term.StdStreams()
 	logrus.SetOutput(stderr)
 
-	dockerCli := command.NewDockerCli(stdin, stdout, stderr, contentTrustEnabled(), containerizedengine.NewClient)
+	dockerCli := command.NewDockerCli(stdin, stdout, stderr, containerizedengine.NewClient)
 	cmd := newDockerCommand(dockerCli)
 
 	if err := cmd.Execute(); err != nil {
@@ -191,28 +203,6 @@ func main() {
 		}
 		fmt.Fprintln(stderr, err)
 		os.Exit(1)
-	}
-}
-
-func contentTrustEnabled() bool {
-	if e := os.Getenv("DOCKER_CONTENT_TRUST"); e != "" {
-		if t, err := strconv.ParseBool(e); t || err != nil {
-			// treat any other value as true
-			return true
-		}
-	}
-	return false
-}
-
-func dockerPreRun(opts *cliflags.ClientOptions) {
-	cliflags.SetLogLevel(opts.Common.LogLevel)
-
-	if opts.ConfigDir != "" {
-		cliconfig.SetDir(opts.ConfigDir)
-	}
-
-	if opts.Common.Debug {
-		debug.Enable()
 	}
 }
 

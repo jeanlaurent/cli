@@ -27,7 +27,7 @@ func TestClientDebugEnabled(t *testing.T) {
 
 func TestExitStatusForInvalidSubcommandWithHelpFlag(t *testing.T) {
 	discard := ioutil.Discard
-	cmd := newDockerCommand(command.NewDockerCli(os.Stdin, discard, discard, false, nil))
+	cmd := newDockerCommand(command.NewDockerCli(os.Stdin, discard, discard, nil))
 	cmd.SetArgs([]string{"help", "invalid"})
 	err := cmd.Execute()
 	assert.Error(t, err, "unknown help topic: invalid")
@@ -35,7 +35,7 @@ func TestExitStatusForInvalidSubcommandWithHelpFlag(t *testing.T) {
 
 func TestExitStatusForInvalidSubcommand(t *testing.T) {
 	discard := ioutil.Discard
-	cmd := newDockerCommand(command.NewDockerCli(os.Stdin, discard, discard, false, nil))
+	cmd := newDockerCommand(command.NewDockerCli(os.Stdin, discard, discard, nil))
 	cmd.SetArgs([]string{"invalid"})
 	err := cmd.Execute()
 	assert.Check(t, is.ErrorContains(err, "docker: 'invalid' is not a docker command."))
@@ -43,7 +43,7 @@ func TestExitStatusForInvalidSubcommand(t *testing.T) {
 
 func TestVersion(t *testing.T) {
 	var b bytes.Buffer
-	cmd := newDockerCommand(command.NewDockerCli(os.Stdin, &b, &b, false, nil))
+	cmd := newDockerCommand(command.NewDockerCli(os.Stdin, &b, &b, nil))
 	cmd.SetArgs([]string{"--version"})
 	err := cmd.Execute()
 	assert.NilError(t, err)

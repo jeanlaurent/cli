@@ -16,6 +16,7 @@ import (
 	cliconfig "github.com/docker/cli/cli/config"
 	"github.com/docker/cli/cli/config/configfile"
 	"github.com/docker/cli/cli/connhelper"
+	"github.com/docker/cli/cli/debug"
 	cliflags "github.com/docker/cli/cli/flags"
 	manifeststore "github.com/docker/cli/cli/manifest/store"
 	registryclient "github.com/docker/cli/cli/registry/client"
@@ -166,6 +167,16 @@ func (cli *DockerCli) RegistryClient(allowInsecure bool) registryclient.Registry
 // Initialize the dockerCli runs initialization that must happen after command
 // line flags are parsed.
 func (cli *DockerCli) Initialize(opts *cliflags.ClientOptions) error {
+	cliflags.SetLogLevel(opts.Common.LogLevel)
+
+	if opts.ConfigDir != "" {
+		cliconfig.SetDir(opts.ConfigDir)
+	}
+
+	if opts.Common.Debug {
+		debug.Enable()
+	}
+
 	cli.configFile = cliconfig.LoadDefaultConfigFile(cli.err)
 
 	var err error
@@ -268,8 +279,8 @@ type ClientInfo struct {
 }
 
 // NewDockerCli returns a DockerCli instance with IO output and error streams set by in, out and err.
-func NewDockerCli(in io.ReadCloser, out, err io.Writer, isTrusted bool, containerizedFn func(string) (clitypes.ContainerizedClient, error)) *DockerCli {
-	return &DockerCli{in: NewInStream(in), out: NewOutStream(out), err: err, contentTrust: isTrusted, newContainerizeClient: containerizedFn}
+func NewDockerCli(in io.ReadCloser, out, err io.Writer, containerizedFn func(string) (clitypes.ContainerizedClient, error)) *DockerCli {
+	return &DockerCli{in: NewInStream(in), out: NewOutStream(out), err: err, contentTrust: contentTrustEnabled(), newContainerizeClient: containerizedFn}
 }
 
 // NewAPIClientFromFlags creates a new APIClient from command line flags

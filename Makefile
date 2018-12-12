@@ -21,6 +21,10 @@ test: test-unit ## run tests
 test-coverage: ## run test coverage
 	./scripts/test/unit-with-coverage $(shell go list ./... | grep -vE '/vendor/|/e2e/')
 
+.PHONY: fmt
+fmt:
+	go list -f {{.Dir}} ./... | xargs gofmt -w -s -d
+
 .PHONY: lint
 lint: ## run all the lint tools
 	gometalinter --config gometalinter.json ./...
@@ -29,6 +33,10 @@ lint: ## run all the lint tools
 binary: ## build executable for Linux
 	@echo "WARNING: binary creates a Linux executable. Use cross for macOS or Windows."
 	./scripts/build/binary
+
+.PHONY: plugins
+plugins: ## build example CLI plugins
+	./scripts/build/plugins
 
 .PHONY: cross
 cross: ## build executable for macOS and Windows
